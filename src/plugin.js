@@ -702,7 +702,7 @@
             const player = result.players[i];
             items.push({
               title: player.name,
-              subtitle: player.path,
+              subtitle: player.path || "Не найден — укажите путь вручную",
               value: player.id,
               selected: player.isDefault,
             });
@@ -718,6 +718,11 @@
                 await window.electronAPI.player.setDefaultAndSave(item.value);
 
               Lampa.Loading.stop();
+
+              if (saveResult.canceled) {
+                Lampa.Controller.toggle("settings_component");
+                return;
+              }
 
               if (saveResult.success) {
                 Lampa.Noty.show(`Выбран плеер: ${item.title}`, "success", 3000);
@@ -1493,7 +1498,7 @@
               const player = result.players[i];
               items.push({
                 title: player.name,
-                subtitle: player.path,
+                subtitle: player.path || "Не найден — укажите путь вручную",
                 value: player.id,
                 selected: player.isDefault,
               });
@@ -1509,6 +1514,11 @@
                   await window.electronAPI.player.setDefaultAndSave(item.value);
 
                 Lampa.Loading.stop();
+
+                if (saveResult.canceled) {
+                  Lampa.Controller.toggle("settings_component");
+                  return;
+                }
 
                 if (saveResult.success) {
                   Lampa.Noty.show(
@@ -2755,7 +2765,7 @@
     };
   }
 
-  function initLampaPlayerIntegration() {
+  function initTorsherPlayerIntegration() {
     const sessions = new Map();
 
     function cleanTitle(value) {
@@ -2799,7 +2809,7 @@
     }
 
     Lampa.Player.listener.follow("create", function (event) {
-      if (localStorage.getItem("desktop_player_id") !== "lampaplayer") return;
+      if (localStorage.getItem("desktop_player_id") !== "torsherplayer") return;
 
       const data = event.data || {};
       const key = mediaKey(data);
@@ -2808,7 +2818,7 @@
       event.abort();
       sessions.set(key, { timeline: data.timeline });
 
-      window.electronAPI.lampaPlayer
+      window.electronAPI.torsherPlayer
         .launch({
           url: url,
           mediaKey: key,
@@ -2827,7 +2837,7 @@
         });
     });
 
-    window.electronAPI.lampaPlayer.onEvent(function (event) {
+    window.electronAPI.torsherPlayer.onEvent(function (event) {
       const context = sessions.get(event.mediaKey);
       if (!context) return;
 
@@ -2862,7 +2872,7 @@
     overwriteToggleFullscreen(); // Переопределение функции Utils.toggleFullscreen
     addQuitButton(); // Кнопка выхода в шапке
     addAppSettings(); // Настройки приложения внутри лампы
-    initLampaPlayerIntegration();
+    initTorsherPlayerIntegration();
     initInputManager();
   }
 

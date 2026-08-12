@@ -8,7 +8,7 @@ const { registerIpcHandlers } = require("./modules/ipcHandlers");
 const torrServerManager = require("./modules/torrServerManager");
 const autoStartManager = require("./modules/autoStartManager");
 const PlayerOptionsInterceptor = require("./modules/playerOptionsInterceptor");
-const lampaPlayerManager = require("./modules/lampaPlayerManager");
+const torsherPlayerManager = require("./modules/torsherPlayerManager");
 setupAppLifecycle();
 
 // Меняем расположение кеша и т.п. для разработки, чтобы не мешало установленной версии
@@ -107,7 +107,7 @@ app.on("will-quit", async (event) => {
 
 // Дополнительный обработчик на случай, если will-quit не сработает
 app.on("before-quit", () => {
-  lampaPlayerManager.close();
+  torsherPlayerManager.close();
   if (torrServerManager.process && !isQuitting) {
     console.log("⚠️ Принудительное завершение TorrServer перед выходом");
     try {

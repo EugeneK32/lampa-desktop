@@ -5,10 +5,10 @@ const http = require("node:http");
 
 const CALLBACK_HOST = "127.0.0.1";
 const CALLBACK_PORT = 19777;
-const CALLBACK_PATH = "/lampaplayer/event";
+const CALLBACK_PATH = "/torsherplayer/event";
 const MAX_BODY_SIZE = 1024 * 1024;
 
-class LampaPlayerManager {
+class TorsherPlayerManager {
   constructor() {
     this.server = null;
     this.serverPromise = null;
@@ -23,7 +23,7 @@ class LampaPlayerManager {
   sendEvent(payload) {
     const mainWindow = this.mainWindowProvider?.();
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("lampaplayer-event", payload);
+      mainWindow.webContents.send("torsherplayer-event", payload);
     }
   }
 
@@ -77,12 +77,12 @@ class LampaPlayerManager {
   async launch(playerPath, media) {
     if (!playerPath || !existsSync(playerPath)) {
       throw new Error(
-        `LampaPlayer не найден: ${playerPath || "путь не задан"}`,
+        `TorsherPlayer не найден: ${playerPath || "путь не задан"}`,
       );
     }
     if (!media?.url || !media?.mediaKey) {
       throw new Error(
-        "Не удалось сформировать URL или media-key для LampaPlayer",
+        "Не удалось сформировать URL или media-key для TorsherPlayer",
       );
     }
 
@@ -129,4 +129,4 @@ class LampaPlayerManager {
   }
 }
 
-module.exports = new LampaPlayerManager();
+module.exports = new TorsherPlayerManager();

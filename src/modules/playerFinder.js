@@ -5,11 +5,24 @@ const store = require("./storeManager");
 
 // Список поддерживаемых плееров
 const PLAYERS = {
-  lampaplayer: {
-    name: "LampaPlayer",
-    description: "LampaPlayer (mpv)",
+  torsherplayer: {
+    name: "TorsherPlayer",
+    description: "TorsherPlayer (mpv)",
     platforms: {
-      win32: { paths: ["E:\\player\\LampaPlayer.exe"] },
+      win32: {
+        paths: [
+          path.join(
+            process.env.ProgramFiles || "C:\\Program Files",
+            "Torsher Player",
+            "TorsherPlayer.exe",
+          ),
+          path.join(
+            process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)",
+            "Torsher Player",
+            "TorsherPlayer.exe",
+          ),
+        ],
+      },
       darwin: { paths: [] },
       linux: { paths: [] },
     },
@@ -142,8 +155,8 @@ class PlayerFinder {
 
   getPlayerPaths(playerId, player) {
     const paths = [...(player.platforms[process.platform]?.paths || [])];
-    if (playerId === "lampaplayer") {
-      const customPath = store.get("lampaPlayerPath", null);
+    if (playerId === "torsherplayer") {
+      const customPath = store.get("torsherPlayerPath", null);
       if (customPath) paths.unshift(customPath);
     }
     return [...new Set(paths)];
@@ -174,8 +187,11 @@ class PlayerFinder {
 
     // Загружаем выбранный плеер по умолчанию
     this.defaultPlayerId = store.get("defaultPlayer", null);
-
-    if (this.defaultPlayerId && !this.foundPlayers.has(this.defaultPlayerId)) {
+    if (
+      this.defaultPlayerId &&
+      this.defaultPlayerId !== "torsherplayer" &&
+      !this.foundPlayers.has(this.defaultPlayerId)
+    ) {
       console.log(
         `⚠️ Выбранный плеер ${this.defaultPlayerId} не найден, сбрасываем`,
       );
@@ -209,22 +225,22 @@ class PlayerFinder {
     return null;
   }
 
-  setLampaPlayerPath(playerPath) {
+  setTorsherPlayerPath(playerPath) {
     if (
       !playerPath ||
-      path.basename(playerPath).toLowerCase() !== "lampaplayer.exe" ||
+      path.basename(playerPath).toLowerCase() !== "torsherplayer.exe" ||
       !existsSync(playerPath)
     ) {
       return false;
     }
 
-    store.set("lampaPlayerPath", playerPath);
-    this.defaultPlayerId = "lampaplayer";
-    store.set("defaultPlayer", "lampaplayer");
-    this.foundPlayers.set("lampaplayer", {
-      id: "lampaplayer",
-      name: PLAYERS.lampaplayer.name,
-      description: PLAYERS.lampaplayer.description,
+    store.set("torsherPlayerPath", playerPath);
+    this.defaultPlayerId = "torsherplayer";
+    store.set("defaultPlayer", "torsherplayer");
+    this.foundPlayers.set("torsherplayer", {
+      id: "torsherplayer",
+      name: PLAYERS.torsherplayer.name,
+      description: PLAYERS.torsherplayer.description,
       path: playerPath,
     });
     return true;
@@ -254,6 +270,9 @@ class PlayerFinder {
 
   // Установить плеер по умолчанию
   async setDefaultPlayer(playerId) {
+    if (playerId === "torsherplayer" && !this.foundPlayers.has(playerId)) {
+      return false;
+    }
     const player = await this.findPlayer(playerId);
     if (!player) return false;
 
@@ -276,13 +295,26 @@ class PlayerFinder {
 
     const defaultPlayer = await this.getDefaultPlayer();
 
-    return Array.from(this.foundPlayers.values()).map((player) => ({
+    const players = Array.from(this.foundPlayers.values()).map((player) => ({
       id: player.id,
       name: player.name,
       description: player.description,
       path: player.path,
       isDefault: defaultPlayer ? player.id === defaultPlayer.id : false,
     }));
+
+    if (!this.foundPlayers.has("torsherplayer")) {
+      players.unshift({
+        id: "torsherplayer",
+        name: PLAYERS.torsherplayer.name,
+        description: PLAYERS.torsherplayer.description,
+        path: null,
+        isDefault: this.defaultPlayerId === "torsherplayer",
+        found: false,
+      });
+    }
+
+    return players;
   }
 
   // Проверить путь в localStorage Lampa
@@ -363,6 +395,22 @@ class PlayerFinder {
       return result.filePaths[0];
     }
     return null;
+  }
+
+  async showTorsherPlayerSelectDialog(mainWindow) {
+    const { dialog } = require("electron");
+    const defaultPath = path.join(
+      process.env.ProgramFiles || "C:\\Program Files",
+      "Torsher Player",
+    );
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Выберите TorsherPlayer.exe",
+      defaultPath,
+      filters: [{ name: "TorsherPlayer", extensions: ["exe"] }],
+      properties: ["openFile"],
+    });
+
+    return result.canceled ? null : result.filePaths[0] || null;
   }
 
   // Получить список доступных плееров (для настроек)
