@@ -5,6 +5,15 @@ const store = require("./storeManager");
 
 // Список поддерживаемых плееров
 const PLAYERS = {
+  lampaplayer: {
+    name: "LampaPlayer",
+    description: "LampaPlayer (mpv)",
+    platforms: {
+      win32: { paths: ["E:\\player\\LampaPlayer.exe"] },
+      darwin: { paths: [] },
+      linux: { paths: [] },
+    },
+  },
   vlc: {
     name: "VLC",
     description: "VLC Media Player",
@@ -131,6 +140,15 @@ class PlayerFinder {
     this.defaultPlayerId = null;
   }
 
+  getPlayerPaths(playerId, player) {
+    const paths = [...(player.platforms[process.platform]?.paths || [])];
+    if (playerId === "lampaplayer") {
+      const customPath = store.get("lampaPlayerPath", null);
+      if (customPath) paths.unshift(customPath);
+    }
+    return [...new Set(paths)];
+  }
+
   // Поиск всех плееров на системе
   async findAllPlayers() {
     const platform = process.platform;
@@ -140,7 +158,7 @@ class PlayerFinder {
       const platformPaths = playerInfo.platforms[platform];
       if (!platformPaths || !platformPaths.paths.length) continue;
 
-      for (const playerPath of platformPaths.paths) {
+      for (const playerPath of this.getPlayerPaths(playerId, playerInfo)) {
         if (existsSync(playerPath)) {
           this.foundPlayers.set(playerId, {
             id: playerId,
@@ -178,7 +196,7 @@ class PlayerFinder {
 
     if (!platformPaths || !platformPaths.paths.length) return null;
 
-    for (const playerPath of platformPaths.paths) {
+    for (const playerPath of this.getPlayerPaths(playerId, player)) {
       if (existsSync(playerPath)) {
         return {
           id: playerId,
@@ -189,6 +207,27 @@ class PlayerFinder {
       }
     }
     return null;
+  }
+
+  setLampaPlayerPath(playerPath) {
+    if (
+      !playerPath ||
+      path.basename(playerPath).toLowerCase() !== "lampaplayer.exe" ||
+      !existsSync(playerPath)
+    ) {
+      return false;
+    }
+
+    store.set("lampaPlayerPath", playerPath);
+    this.defaultPlayerId = "lampaplayer";
+    store.set("defaultPlayer", "lampaplayer");
+    this.foundPlayers.set("lampaplayer", {
+      id: "lampaplayer",
+      name: PLAYERS.lampaplayer.name,
+      description: PLAYERS.lampaplayer.description,
+      path: playerPath,
+    });
+    return true;
   }
 
   // Получить плеер по умолчанию
@@ -277,16 +316,19 @@ class PlayerFinder {
 
     try {
       const escapedPath = finalPath.replace(/\\/g, "\\\\");
+      const playerId = playerInfo ? playerInfo.id : "manual";
 
       await mainWindow.webContents.executeJavaScript(`
         localStorage.setItem('player_nw_path', '${escapedPath}');
         localStorage.setItem('player_torrent', 'other');
+        localStorage.setItem('desktop_player_id', '${playerId}');
         console.log('App', '✅ player_nw_path сохранен:', '${escapedPath}');
         console.log('App', '✅ player_torrent сохранен:', 'other');
 
         if (window.Lampa && window.Lampa.Storage) {
           window.Lampa.Storage.set('player_nw_path', '${escapedPath}');
           window.Lampa.Storage.set('player_torrent', 'other');
+          window.Lampa.Storage.set('desktop_player_id', '${playerId}');
         }
       `);
 

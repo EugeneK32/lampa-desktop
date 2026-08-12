@@ -154,6 +154,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     setDefaultAndSave: (playerId) =>
       ipcRenderer.invoke("player-set-default-and-save", playerId),
   },
+  lampaPlayer: {
+    launch: (media) => ipcRenderer.invoke("lampaplayer-launch", media),
+    onEvent: (callback) => {
+      const listener = (event, payload) => callback(payload);
+      ipcRenderer.on("lampaplayer-event", listener);
+      return () => ipcRenderer.removeListener("lampaplayer-event", listener);
+    },
+  },
 });
 
 console.log("Preload script loaded successfully");

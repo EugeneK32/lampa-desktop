@@ -2335,14 +2335,43 @@
         12: { key: "ArrowUp", code: "ArrowUp", keyCode: 38, repeat: true },
         13: { key: "ArrowDown", code: "ArrowDown", keyCode: 40, repeat: true },
         14: { key: "ArrowLeft", code: "ArrowLeft", keyCode: 37, repeat: true },
-        15: { key: "ArrowRight", code: "ArrowRight", keyCode: 39, repeat: true },
+        15: {
+          key: "ArrowRight",
+          code: "ArrowRight",
+          keyCode: 39,
+          repeat: true,
+        },
       };
 
       this.axisMap = [
-        { axis: 0, direction: -1, key: "ArrowLeft", code: "ArrowLeft", keyCode: 37 },
-        { axis: 0, direction: 1, key: "ArrowRight", code: "ArrowRight", keyCode: 39 },
-        { axis: 1, direction: -1, key: "ArrowUp", code: "ArrowUp", keyCode: 38 },
-        { axis: 1, direction: 1, key: "ArrowDown", code: "ArrowDown", keyCode: 40 },
+        {
+          axis: 0,
+          direction: -1,
+          key: "ArrowLeft",
+          code: "ArrowLeft",
+          keyCode: 37,
+        },
+        {
+          axis: 0,
+          direction: 1,
+          key: "ArrowRight",
+          code: "ArrowRight",
+          keyCode: 39,
+        },
+        {
+          axis: 1,
+          direction: -1,
+          key: "ArrowUp",
+          code: "ArrowUp",
+          keyCode: 38,
+        },
+        {
+          axis: 1,
+          direction: 1,
+          key: "ArrowDown",
+          code: "ArrowDown",
+          keyCode: 40,
+        },
       ];
 
       this.poll = this.poll.bind(this);
@@ -2411,7 +2440,10 @@
       const state = this.buttonStates.get(id);
 
       if (pressed && !state) {
-        this.buttonStates.set(id, { nextRepeat: now + this.repeatDelay, binding });
+        this.buttonStates.set(id, {
+          nextRepeat: now + this.repeatDelay,
+          binding,
+        });
         this.dispatch("keydown", binding);
       } else if (pressed && state && canRepeat && now >= state.nextRepeat) {
         state.nextRepeat = now + this.repeatInterval;
@@ -2535,10 +2567,114 @@
     };
   }
 
+  function initLampaPlayerIntegration() {
+    const sessions = new Map();
+
+    function cleanTitle(value) {
+      const element = document.createElement("div");
+      element.innerHTML = value || "";
+      return (element.textContent || "Lampa").trim();
+    }
+
+    function mediaKey(data) {
+      const card = data.card || {};
+      const episodeData =
+        data.episode && typeof data.episode === "object" ? data.episode : {};
+      const tmdb = card.id || card.tmdb_id || data.tmdb_id;
+      const season = Number(
+        data.season || data.season_number || episodeData.season_number || 0,
+      );
+      const episode = Number(
+        (typeof data.episode === "number" ? data.episode : 0) ||
+          data.episode_number ||
+          episodeData.episode_number ||
+          0,
+      );
+      const isSeries = Boolean(
+        card.name ||
+        card.original_name ||
+        card.first_air_date ||
+        card.number_of_seasons,
+      );
+
+      if (tmdb && season && episode) {
+        return `series:tmdb:${tmdb}:s${String(season).padStart(2, "0")}:e${String(episode).padStart(2, "0")}`;
+      }
+      if (isSeries && data.timeline && data.timeline.hash) {
+        return `lampa:timeline:${data.timeline.hash}`;
+      }
+      if (tmdb) return `movie:tmdb:${tmdb}`;
+      if (data.timeline && data.timeline.hash) {
+        return `lampa:timeline:${data.timeline.hash}`;
+      }
+      return `lampa:url:${String(data.url || "")}`;
+    }
+
+    Lampa.Player.listener.follow("create", function (event) {
+      if (localStorage.getItem("desktop_player_id") !== "lampaplayer") return;
+
+      const data = event.data || {};
+      const key = mediaKey(data);
+      const url = String(data.url || "").replace("&preload", "&play");
+
+      event.abort();
+      sessions.set(key, { timeline: data.timeline });
+
+      window.electronAPI.lampaPlayer
+        .launch({
+          url: url,
+          mediaKey: key,
+          title: cleanTitle(data.title || data.name),
+          resume: data.timeline ? data.timeline.time || 0 : 0,
+          playerPath:
+            Lampa.Storage.field("player_nw_path") ||
+            localStorage.getItem("player_nw_path"),
+        })
+        .then(function () {
+          Lampa.Player.listener.send("external", data);
+        })
+        .catch(function (error) {
+          sessions.delete(key);
+          Lampa.Noty.show(error.message || String(error), "error", 5000);
+        });
+    });
+
+    window.electronAPI.lampaPlayer.onEvent(function (event) {
+      const context = sessions.get(event.mediaKey);
+      if (!context) return;
+
+      const saveEvents = [
+        "progress",
+        "paused",
+        "seeked",
+        "stopped",
+        "completed",
+      ];
+      if (saveEvents.indexOf(event.event) >= 0 && context.timeline) {
+        const duration = Number(event.duration) || 0;
+        const position = Number(event.position) || 0;
+        let percent = Number(event.percent);
+        if (!Number.isFinite(percent)) {
+          percent = duration > 0 ? (position / duration) * 100 : 0;
+        }
+        if (event.event === "completed") percent = 100;
+        context.timeline.handler(percent, position, duration);
+      }
+
+      if (["completed", "stopped", "error"].indexOf(event.event) >= 0) {
+        sessions.delete(event.mediaKey);
+      }
+      if (event.event === "error" && event.message) {
+        Lampa.Noty.show(event.message, "error", 5000);
+      }
+    });
+  }
+
   function init() {
     overwriteToggleFullscreen(); // Переопределение функции Utils.toggleFullscreen
     addQuitButton(); // Кнопка выхода в шапке
     addAppSettings(); // Настройки приложения внутри лампы
+    initLampaPlayerIntegration();
     initInputManager();
   }
 

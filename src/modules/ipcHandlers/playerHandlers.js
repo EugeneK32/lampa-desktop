@@ -2,8 +2,10 @@
 const { ipcMain } = require("electron");
 const playerFinder = require("../playerFinder");
 const { getMainWindow } = require("../windowManager");
+const lampaPlayerManager = require("../lampaPlayerManager");
 
 function registerPlayerHandlers() {
+  lampaPlayerManager.setMainWindowProvider(getMainWindow);
   // Получить все плееры
   ipcMain.handle("player-get-all", async () => {
     return await playerFinder.getAllPlayers();
@@ -82,6 +84,20 @@ function registerPlayerHandlers() {
     }
 
     return { success: false };
+  });
+
+  ipcMain.handle("lampaplayer-launch", async (event, media) => {
+    if (media?.playerPath) {
+      const saved = playerFinder.setLampaPlayerPath(media.playerPath);
+      if (!saved) {
+        throw new Error(`LampaPlayer не найден: ${media.playerPath}`);
+      }
+    }
+    const player = await playerFinder.getDefaultPlayer();
+    if (!player || player.id !== "lampaplayer") {
+      throw new Error("LampaPlayer не выбран в настройках");
+    }
+    return await lampaPlayerManager.launch(player.path, media);
   });
 }
 
